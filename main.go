@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"golang.org/x/crypto/bcrypt"
 
+	"math/rand"
 )
 
 type Organization struct {
@@ -66,6 +67,7 @@ func (Product) TableName() string {
 
 type UserClaims struct {
 	UserProfile         User            `json:"userprofile"`
+	SecretKey              int
 	jwt.StandardClaims
 }
 
@@ -183,6 +185,7 @@ func login(c *gin.Context){
 				//set claims
 				claims = UserClaims{
 					v,
+					rand.Intn(10000),
 					jwt.StandardClaims{
 						Issuer: "testing_administrator", //"test-project"
 					},
@@ -191,7 +194,7 @@ func login(c *gin.Context){
 		}
 	}
 
-
+	fmt.Println("SECRET KEY      !",claims.SecretKey)
 
 	if flag !=1{
 		token := jwt.NewWithClaims(jwt.SigningMethodRS256,claims)
