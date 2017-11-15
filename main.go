@@ -18,17 +18,18 @@ import (
 	"io/ioutil"
 	"golang.org/x/crypto/bcrypt"
 
-	"math/rand"
+	"strconv"
+
 )
 
 type Organization struct {
-	Id           uint
-	Name         string
-	AddressLine1 string
-	AddressLine2 string
-	City         string
-	State        string
-	Country      string
+	Id           uint                    `json:"id,omitempty"`
+	Name         string                  `json:"name,omitempty"`
+	AddressLine1 string                  `json:"addressline1,omitempty"`
+	AddressLine2 string                  `json:"addressline2,omitempty"`
+	City         string                  `json:"city,omitempty"`
+	State        string                  `json:"state,omitempty"`
+	Country      string                  `json:"country,omitempty"`
 }
 
 func (Organization) TableName() string {
@@ -36,16 +37,16 @@ func (Organization) TableName() string {
 }
 
 type User struct {
-	Id           uint
-	FirstName    string
-	LastName     string
-	Email        string
-	Password     string
-	PhoneNumber  string
-	AddressLine1 string
-	AddressLine2 string
-	UserType     string
-	OrgId        uint
+	Id           uint                   `json:"id,omitempty"`
+	FirstName    string                 `json:"firstname,omitempty"`
+	LastName     string                 `json:"lastname,omitempty"`
+	Email        string                 `json:"email,omitempty"`
+	Password     string                 `json:"password,omitempty"`
+	PhoneNumber  string                 `json:"phonenumber,omitempty"`
+	AddressLine1 string                 `json:"addressline1,omitempty"`
+	AddressLine2 string                 `json:"addressline2,omitempty"`
+	UserType     string                 `json:"usertype,omitempty"`
+	OrgId        uint                   `json:"orgid,omitempty"`
 }
 
 func (User) TableName() string {
@@ -67,7 +68,7 @@ func (Product) TableName() string {
 
 type UserClaims struct {
 	UserProfile         User            `json:"userprofile"`
-	SecretKey              int
+	SecretKey              time.Time
 	jwt.StandardClaims
 }
 
@@ -92,9 +93,7 @@ var err error
 
 func initKeys(){
 	var err error
-
 	signBytes, err := ioutil.ReadFile(privKeyPath)
-
 	SignKey, err = jwt.ParseRSAPrivateKeyFromPEM(signBytes)
 	if err !=nil{
 		fmt.Println("key not read")
@@ -102,7 +101,6 @@ func initKeys(){
 	}
 
 	verifyBytes, err := ioutil.ReadFile(pubKeyPath)
-
 	VerifyKey, err = jwt.ParseRSAPublicKeyFromPEM(verifyBytes)
 	if err !=nil{
 		fmt.Println("key not read")
@@ -133,35 +131,20 @@ func main() {
 	//todo create routes with gin
 	r:=gin.Default()
 	r.POST("/login",login)
-	r.POST("/auth_middleware",authMiddleware)
-	// r.Handle("GET","/favicon.ico")
-	r.Run()
-
-
-	//todo on new organization create new db (Organization.Name), with default table (Product) and sample data
-
-	//todo on login return token (jwt)
-
-	//todo on fetch products route
-		//1 authenticate using token
-		//2 extract user's org id
-		//2 fetch products from the db of extracted org id
+//	r.POST("/auth_middleware",authMiddleware)
+	r.GET("/products",getProducts)
+	r.GET("/users",getUsers)
+	r.POST("/users",createUsers)
+	r.GET("/organisation",getOrg)
+	r.POST("/organisation",createOrg)
+	r.Run(":8080")
 }
 
 func login(c *gin.Context){
 
-	err:=c.Request.ParseForm()
-	if err!=nil{
-		fmt.Println("unable to parse form data !")
-	}
-
 	//credentials by headers
 	name1:=c.Request.Header.Get("username")
 	pwd1:=c.Request.Header.Get("password")
-
-	//credentials by form data
-	/*name1:=c.PostForm("username")
-	pwd1:=c.PostForm("password")*/
 
 	fmt.Println("FORM RETURNS ::",name1,pwd1)
 
@@ -170,9 +153,6 @@ func login(c *gin.Context){
 
 	var user []User
     db.Model(User{}).Find(&user)
-//	json.NewEncoder(c.Writer).Encode(user)
-
-    fmt.Println(user)
 
 	for _,v:=range user{
 		if strings.ToLower(name1) == v.Email{
@@ -185,16 +165,14 @@ func login(c *gin.Context){
 				//set claims
 				claims = UserClaims{
 					v,
-					rand.Intn(10000),
+					time.Now(),                       //to generate unique token everytime  //rand.Intn(10000),
 					jwt.StandardClaims{
-						Issuer: "testing_administrator", //"test-project"
+						Issuer: "testing_administrator",
 					},
 				}
 			}
 		}
 	}
-
-//	fmt.Println("SECRET KEY      !",claims.SecretKey)
 
 	if flag !=1{
 		token := jwt.NewWithClaims(jwt.SigningMethodRS256,claims)
@@ -225,12 +203,10 @@ func login(c *gin.Context){
 		c.Writer.Header().Set("status","200")
 		response := Token{ss}
 		JsonResponse(response, c.Writer)
-
 	}
-
 }
 
-func authMiddleware(c *gin.Context){
+func authMiddleware(c *gin.Context) (success bool){
 
 	//validate token
 	token, err := jwtreq.ParseFromRequestWithClaims(c.Request, jwtreq.AuthorizationHeaderExtractor,&claims,func(token *jwt.Token) (interface{}, error){
@@ -242,15 +218,140 @@ func authMiddleware(c *gin.Context){
 		if token.Valid{
 			fmt.Println("VERIFIED !")
 			fmt.Fprint(c.Writer, "SUCCESS.....!!")
+			return true
 		} else {
 			c.Writer.Header().Set("status","401")
 			fmt.Fprint(c.Writer, "Token is not valid")
+			return false
 		}
+
 	} else {
 		c.Writer.Header().Set("status","401")
 		fmt.Fprint(c.Writer, "Unauthorised access , Error Verifying Token")
+		return false
+	}
+}
+
+func getProducts(c *gin.Context){
+	if authMiddleware(c)!=true{
+		c.Writer.Header().Set("status","401")
+		fmt.Fprint(c.Writer, "Token is not valid")
+		return
 	}
 
+    var org Organization
+	db.Debug().Model(&Organization{}).
+		Select("DISTINCT x_org_ext.name").
+		Joins("INNER JOIN x_user ON x_org_ext.id = ?",claims.UserProfile.OrgId).
+		Scan(&org)
+
+		fmt.Println(org.Name)      //check
+
+	db_prod,err:=gorm.Open("mysql","root:password@/"+org.Name+"?charset=utf8&parseTime=True&loc=Local")
+
+	if err!=nil {
+		log.Fatal(err)
+	}
+
+	err = db_prod.DB().Ping()
+	if err != nil {
+		log.Fatal(err)
+	}else{
+		fmt.Println("connected with DB ::--",org.Name)
+	}
+	defer db_prod.Close()
+
+	var products []Product
+	db_prod.Model(&Product{}).Find(&products)
+
+	JsonResponse(products,c.Writer)
+}
+
+func getUsers(c *gin.Context){
+	fmt.Println("type :: ",claims.UserProfile.UserType)
+
+	if claims.UserProfile.UserType=="user" || authMiddleware(c)==false{
+			c.Writer.Header().Set("status","401")
+			fmt.Fprint(c.Writer, "No Admin Rights to View all Users!")
+
+	}else{
+		var users []User
+		db.Model(&User{}).Find(&users)
+		JsonResponse(users,c.Writer)
+	}
+}
+
+func createUsers(c *gin.Context){
+
+	if claims.UserProfile.UserType=="user" || authMiddleware(c)==false{
+		c.Writer.Header().Set("status","401")
+		fmt.Fprint(c.Writer, "No Admin Rights to Create Users!")
+	}else{
+		fname:=c.PostForm("first_name")
+		lname:=c.PostForm("last_name")
+		email:=c.PostForm("email")
+		pwd:=c.PostForm("password")
+		phone:=c.PostForm("phone_number")
+		add1:=c.PostForm("address_line1")
+		add2:=c.PostForm("address_line2")
+		utype:=c.PostForm("user_type")
+		oid:=c.PostForm("org_id")
+		orgid,_:=strconv.Atoi(oid)
+		new_user:=User{FirstName:fname,LastName:lname,Email:email,Password:pwd,PhoneNumber:phone,AddressLine1:add1,
+		AddressLine2:add2,UserType:utype,OrgId:uint(orgid)}
+		db.Create(&new_user)
+	}
+}
+
+func getOrg(c *gin.Context){
+	fmt.Println("type :: ",claims.UserProfile.UserType)
+
+	if claims.UserProfile.UserType=="user" || authMiddleware(c)==false{
+		c.Writer.Header().Set("status","401")
+		fmt.Fprint(c.Writer, "No Admin Rights to View all Users!")
+
+	}else{
+		var org []Organization
+		db.Model(&Organization{}).Find(&org)
+		JsonResponse(org,c.Writer)
+	}
+}
+
+func createOrg(c *gin.Context){
+
+	if claims.UserProfile.UserType=="user" || authMiddleware(c)==false{
+		c.Writer.Header().Set("status","401")
+		fmt.Fprint(c.Writer, "No Admin Rights to Create Users!")
+	}else{
+		name:=c.PostForm("name")
+		add1:=c.PostForm("address_line1")
+		add2:=c.PostForm("address_line2")
+		city:=c.PostForm("city")
+		state:=c.PostForm("state")
+		country:=c.PostForm("country")
+		new_org:=Organization{Name:name,AddressLine1:add1,AddressLine2:add2,City:city,State:state,Country:country}
+
+		db.Create(&new_org)
+		fmt.Println(new_org)
+
+		db_temp, _ := gorm.Open("mysql", "root:password@tcp(127.0.0.1:3306)/")
+		db_temp.Exec("CREATE DATABASE "+new_org.Name)
+
+		db_org,err:=gorm.Open("mysql","root:password@tcp(127.0.0.1:3306)/"+new_org.Name+"?charset=utf8&parseTime=True&loc=Local")
+
+		if err!=nil {
+			log.Fatal(err)
+		}
+
+		err = db_org.DB().Ping()
+		if err != nil {
+			log.Fatal(err)
+		}else{
+			fmt.Println("connected with DB ::--",new_org.Name)
+		}
+		defer db_org.Close()
+		db_org.CreateTable(&Product{})
+	}
 }
 
 func JsonResponse(response interface{}, w http.ResponseWriter) {
@@ -260,9 +361,9 @@ func JsonResponse(response interface{}, w http.ResponseWriter) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsondata)
+
 }
 
