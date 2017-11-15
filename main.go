@@ -130,17 +130,10 @@ func main() {
 
     initKeys()
 
-	//Create Organization and User tables
-
-	/*db.DropTableIfExists(Organization{},User{})
-	db.CreateTable(Organization{},User{})*/
-
-
 	//todo create routes with gin
 	r:=gin.Default()
 	r.POST("/login",login)
 	r.POST("/auth_middleware",authMiddleware)
-	r.GET("/products",fetchProduct)
 	// r.Handle("GET","/favicon.ico")
 	r.Run()
 
@@ -161,8 +154,15 @@ func login(c *gin.Context){
 	if err!=nil{
 		fmt.Println("unable to parse form data !")
 	}
-	name1:=c.PostForm("username")
-	pwd1:=c.PostForm("password")
+
+	//credentials by headers
+	name1:=c.Request.Header.Get("username")
+	pwd1:=c.Request.Header.Get("password")
+
+	//credentials by form data
+	/*name1:=c.PostForm("username")
+	pwd1:=c.PostForm("password")*/
+
 	fmt.Println("FORM RETURNS ::",name1,pwd1)
 
 	var flag int                                                        // =1 , user login success
@@ -194,7 +194,7 @@ func login(c *gin.Context){
 		}
 	}
 
-	fmt.Println("SECRET KEY      !",claims.SecretKey)
+//	fmt.Println("SECRET KEY      !",claims.SecretKey)
 
 	if flag !=1{
 		token := jwt.NewWithClaims(jwt.SigningMethodRS256,claims)
@@ -250,10 +250,6 @@ func authMiddleware(c *gin.Context){
 		c.Writer.Header().Set("status","401")
 		fmt.Fprint(c.Writer, "Unauthorised access , Error Verifying Token")
 	}
-
-}
-
-func fetchProduct(c *gin.Context){
 
 }
 
