@@ -7,7 +7,7 @@ import (
 	_ "database/sql"
 	_ "github.com/go-sql-driver/mysql"
 	"encoding/json"
-//	jwtreq "github.com/dgrijalva/jwt-go/request"
+	jwtreq "github.com/dgrijalva/jwt-go/request"
 
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -229,7 +229,7 @@ func login(c *gin.Context){
 
 func authMiddleware(c *gin.Context){
 
-/*	//validate token
+	//validate token
 	token, err := jwtreq.ParseFromRequestWithClaims(c.Request, jwtreq.AuthorizationHeaderExtractor,&claims,func(token *jwt.Token) (interface{}, error){
 		return VerifyKey, nil
 	})
@@ -238,14 +238,15 @@ func authMiddleware(c *gin.Context){
 
 		if token.Valid{
 			fmt.Println("VERIFIED !")
+			fmt.Fprint(c.Writer, "SUCCESS.....!!")
 		} else {
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprint(w, "Token is not valid")
+			c.Writer.Header().Set("status","401")
+			fmt.Fprint(c.Writer, "Token is not valid")
 		}
 	} else {
-		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, "Unauthorised access to this resource")
-	}*/
+		c.Writer.Header().Set("status","401")
+		fmt.Fprint(c.Writer, "Unauthorised access , Error Verifying Token")
+	}
 
 }
 
