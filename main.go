@@ -334,8 +334,7 @@ func createOrg(c *gin.Context){
 		db.Create(&new_org)
 		fmt.Println(new_org)
 
-		db_temp, _ := gorm.Open("mysql", "root:password@tcp(127.0.0.1:3306)/")
-		db_temp.Exec("CREATE DATABASE "+new_org.Name)
+		db.Exec("CREATE DATABASE "+new_org.Name)
 
 		db_org,err:=gorm.Open("mysql","root:password@tcp(127.0.0.1:3306)/"+new_org.Name+"?charset=utf8&parseTime=True&loc=Local")
 
