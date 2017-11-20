@@ -8,7 +8,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"encoding/json"
 	jwtreq "github.com/dgrijalva/jwt-go/request"
-
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
